@@ -32,6 +32,7 @@ import (
 	"github.com/virtual-kubelet/virtual-kubelet/node/nodeutil"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
+	kubeinformers "k8s.io/client-go/informers"
 )
 
 // NewCommand creates a new top-level command.
@@ -82,7 +83,11 @@ func runRootCommand(ctx context.Context, s *provider.Store, c Opts) error {
 	// Set-up the node provider.
 	mux := http.NewServeMux()
 	newProvider := func(cfg nodeutil.ProviderConfig) (nodeutil.Provider, node.NodeProvider, error) {
-		rm, err := manager.NewResourceManager(cfg.Pods, cfg.Secrets, cfg.ConfigMaps, cfg.Services, cfg.PersistentVolumeClaim, cfg.PersistentVolume)
+
+		scmInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(clientSet, c.InformerResyncPeriod)
+
+		rm, err := manager.NewResourceManager(cfg.Pods, cfg.Secrets, cfg.ConfigMaps, cfg.Services,
+			scmInformerFactory.Core().V1().PersistentVolumeClaims().Lister(), scmInformerFactory.Core().V1().PersistentVolumes().Lister())
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "could not create resource manager")
 		}
