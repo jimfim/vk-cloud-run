@@ -169,35 +169,7 @@ func (p *CloudRunProvider) CreatePod(ctx context.Context, pod *v1.Pod) error {
 	ctx = addAttributes(ctx, span, namespaceKey, pod.Namespace, nameKey, pod.Name)
 
 	log.G(ctx).Infof("receive CreatePod %q", pod.Name)
-
-	// parent := fmt.Sprintf("projects/%s/locations/%s", jobJect.projectID, jobJect.region)
-	// labels := map[string]string{
-	// 	"managed-by": "virtual-kubelet",
-	// }
 	p.crclient.CreatePod(pod)
-	// req := &runpb.CreateServiceRequest{
-	// 	Parent: parent,
-	// 	Service: &runpb.Service{
-	// 		Labels:      labels,
-	// 		Description: pod.Name,
-	// 		Template: &runpb.RevisionTemplate{
-	// 			Labels:     labels,
-	// 			Containers: []*runpb.Container{{Image: "us-docker.pkg.dev/cloudrun/container/hello", Ports: []*runpb.ContainerPort{{ContainerPort: 8080}}}}}},
-	// 	ServiceId:    pod.Name,
-	// 	ValidateOnly: false,
-	// }
-
-	// op, err := c.CreateService(ctx, req)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// }
-
-	// resp, err := op.Wait(ctx)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// }
-
-	//_ = resp
 	now := metav1.NewTime(time.Now())
 	pod.Status = v1.PodStatus{
 		Phase:     v1.PodRunning,
@@ -262,37 +234,23 @@ func (p *CloudRunProvider) DeletePod(ctx context.Context, pod *v1.Pod) (err erro
 	ctx, span := trace.StartSpan(ctx, "DeletePod")
 	ctx = addAttributes(ctx, span, namespaceKey, pod.Namespace, nameKey, pod.Name)
 	p.crclient.DeletePod(pod.Name)
-	// jobJect := JobDetails{}
-	// jobJect.projectID = "direct-volt-388318" //os.Getenv("GOOGLE_CLOUD_PROJECT")
-	// jobJect.region = "us-east1"
-	// defer span.End()
+	now := metav1.Now()
+	pod.Status.Phase = v1.PodSucceeded
+	pod.Status.Reason = "CloudRunProviderPodDeleted"
 
-	// // Add the pod's coordinates to the current span.
-	// ctx = addAttributes(ctx, span, namespaceKey, pod.Namespace, nameKey, pod.Name)
+	for idx := range pod.Status.ContainerStatuses {
+		pod.Status.ContainerStatuses[idx].Ready = false
+		pod.Status.ContainerStatuses[idx].State = v1.ContainerState{
+			Terminated: &v1.ContainerStateTerminated{
+				Message:    "CloudRun provider terminated container upon deletion",
+				FinishedAt: now,
+				Reason:     "CloudRunProviderPodContainerDeleted",
+				StartedAt:  pod.Status.ContainerStatuses[idx].State.Running.StartedAt,
+			},
+		}
+	}
 
-	// log.G(ctx).Infof("receive DeletePod %q", pod.Name)
-
-	// c, err := run.NewServicesClient(ctx, option.WithCredentialsFile("/application_default_credentials.json"))
-	// defer c.Close()
-	// if err != nil {
-	// 	fmt.Println(err)
-	// }
-	// parent := fmt.Sprintf("projects/%s/locations/%s/services/%s", jobJect.projectID, jobJect.region, pod.Name)
-	// req := &runpb.DeleteServiceRequest{
-	// 	Name:         parent,
-	// 	ValidateOnly: false,
-	// }
-
-	// op, err := c.DeleteService(ctx, req)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// }
-	// resp, err := op.Wait(ctx)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// }
-	// _ = resp
-
+	p.notifier(pod)
 	return nil
 }
 
@@ -375,39 +333,16 @@ func (p *CloudRunProvider) GetPodStatus(ctx context.Context, namespace, name str
 func (p *CloudRunProvider) GetPods(ctx context.Context) ([]*v1.Pod, error) {
 	ctx, span := trace.StartSpan(ctx, "GetPods")
 	defer span.End()
-	// jobJect := JobDetails{}
-	// jobJect.projectID = "direct-volt-388318" //os.Getenv("GOOGLE_CLOUD_PROJECT")
-	// jobJect.region = "us-east1"
 
-	// c, err := run.NewServicesClient(ctx, option.WithCredentialsFile("/application_default_credentials.json"))
-	// defer c.Close()
-	// if err != nil {
-	// 	fmt.Println(err)
-	// }
-	// parent := fmt.Sprintf("projects/%s/locations/%s", jobJect.projectID, jobJect.region)
+	log.G(ctx).Info("receive GetPods")
 
-	// req := &runpb.ListServicesRequest{
-	// 	Parent:      parent,
-	// 	PageSize:    10,
-	// 	PageToken:   "",
-	// 	ShowDeleted: false,
-	// }
-	// var pods []*v1.Pod
-	// it := c.ListServices(ctx, req)
-	// for {
-	// 	res, err := it.Next()
-	// 	if err == iterator.Done {
-	// 		break
-	// 	}
-	// 	if err != nil {
-	// 		fmt.Println(err)
-	// 		break
-	// 	}
-	// 	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: res.Name}}
-	// 	pods = append(pods, pod)
-	// 	fmt.Println(res)
-	// }
-	return nil, nil
+	var pods []*v1.Pod
+
+	for _, pod := range p.pods {
+		pods = append(pods, pod)
+	}
+
+	return pods, nil
 }
 
 func (p *CloudRunProvider) ConfigureNode(ctx context.Context, n *v1.Node) { //nolint:golint
@@ -435,9 +370,9 @@ func (p *CloudRunProvider) ConfigureNode(ctx context.Context, n *v1.Node) { //no
 // Capacity returns a resource list containing the capacity limits.
 func (p *CloudRunProvider) capacity() v1.ResourceList {
 	rl := v1.ResourceList{
-		"cpu":    resource.MustParse("20"),
-		"memory": resource.MustParse("32Gi"),
-		"pods":   resource.MustParse("128"),
+		"cpu":    resource.MustParse(p.config.CPU),
+		"memory": resource.MustParse(p.config.Memory),
+		"pods":   resource.MustParse(p.config.Pods),
 	}
 	for k, v := range p.config.Others {
 		rl[v1.ResourceName(k)] = resource.MustParse(v)

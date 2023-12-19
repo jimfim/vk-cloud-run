@@ -6,9 +6,10 @@ WORKDIR /go/src/
 RUN go mod download
 RUN go build .
 
-FROM scratch
-COPY --from=builder /go/src/virtual-kubelet /usr/bin/virtual-kubelet
+FROM ubuntu:latest
+RUN apt-get update
+COPY --from=builder /go/src/kubelet-cloud-run /usr/bin/kubelet-cloud-run
 COPY --from=builder /etc/ssl/certs/ /etc/ssl/certs
-#COPY hack/skaffold/virtual-kubelet/vkubelet-mock-0-cfg.json /vkubelet-mock-0-cfg.json
-ENTRYPOINT [ "/usr/bin/virtual-kubelet" ]
+COPY src/vkubelet-cfg.json /vkubelet-cfg.json
+ENTRYPOINT [ "/usr/bin/kubelet-cloud-run" ]
 CMD [ "--help" ]

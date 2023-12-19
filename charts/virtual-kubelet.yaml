@@ -30,11 +30,11 @@ spec:
         command: ["/usr/bin/kubelet-cloud-run"]
         args:
         - --nodename
-        - vkubelet-cloud-run-0
+        - vkubelet-cloudrun-0
         - --provider
         - cloudrun
         - --provider-config
-        - /vkubelet-mock-0-cfg.json
+        - "/vkubelet-cfg.json"
         - --startup-timeout
         - 10s
         - --klog.v
