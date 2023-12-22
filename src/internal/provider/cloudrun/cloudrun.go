@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/virtual-kubelet/virtual-kubelet/node/nodeutil"
 	"io"
+	"k8s.io/apimachinery/pkg/runtime"
 	"math/rand"
 	"os"
 	"strings"
@@ -55,6 +57,50 @@ type CloudRunProvider struct { //nolint:golint
 	startTime          time.Time
 	notifier           func(*v1.Pod)
 	crclient           ClientManager
+	tracker            *PodsTracker
+	pconfig            nodeutil.ProviderConfig
+}
+
+func (p *CloudRunProvider) ListActivePods(ctx context.Context) ([]PodIdentifier, error) {
+	ctx, span := trace.StartSpan(ctx, "CloudRunProvider.ListActivePods")
+	defer span.End()
+
+	providerPods, err := p.GetPods(ctx)
+	if err != nil {
+		return nil, err
+	}
+	podsIdentifiers := make([]PodIdentifier, 0, len(providerPods))
+
+	for _, pod := range providerPods {
+		podsIdentifiers = append(
+			podsIdentifiers,
+			PodIdentifier{
+				namespace: pod.Namespace,
+				name:      pod.Name,
+			})
+	}
+
+	return podsIdentifiers, nil
+}
+
+func (p *CloudRunProvider) FetchPodStatus(ctx context.Context, ns, name string) (*v1.PodStatus, error) {
+	ctx, span := trace.StartSpan(ctx, "CloudRunProvider.FetchPodStatus")
+	defer span.End()
+
+	return p.GetPodStatus(ctx, ns, name)
+}
+
+func (p *CloudRunProvider) FetchPodEvents(ctx context.Context, pod *v1.Pod, evtSink func(timestamp *time.Time, object runtime.Object, eventtype string, reason string, messageFmt string, args ...interface{})) error {
+	ctx, span := trace.StartSpan(ctx, "CloudRunProvider.FetchPodEvents")
+	defer span.End()
+	return nil
+}
+
+func (p *CloudRunProvider) CleanupPod(ctx context.Context, ns, name string) error {
+	ctx, span := trace.StartSpan(ctx, "CloudRunProvider.CleanupPod")
+	defer span.End()
+	p.crclient.DeletePod(name)
+	return nil
 }
 
 // CloudRunConfig contains a mock virtual-kubelet's configurable parameters.
@@ -69,7 +115,7 @@ type CloudRunConfig struct { //nolint:golint
 }
 
 // NewCloudRunProvider creates a new MockV0Provider. Mock legacy provider does not implement the new asynchronous podnotifier interface
-func NewCloudRunProviderConfig(config CloudRunConfig, nodeName, operatingSystem string, internalIP string, daemonEndpointPort int32) (*CloudRunProvider, error) {
+func NewCloudRunProviderConfig(config CloudRunConfig, nodeName, operatingSystem string, internalIP string, daemonEndpointPort int32, providerConfig nodeutil.ProviderConfig) (*CloudRunProvider, error) {
 	// set defaults
 	if config.CPU == "" {
 		config.CPU = defaultCPUCapacity
@@ -97,19 +143,19 @@ func NewCloudRunProviderConfig(config CloudRunConfig, nodeName, operatingSystem 
 		config:             config,
 		startTime:          time.Now(),
 		crclient:           client,
+		pconfig:            providerConfig,
 	}
-
 	return &provider, nil
 }
 
 // NewCloudRunProvider creates a new CloudRunProvider, which implements the PodNotifier interface
-func NewCloudRunProvider(providerConfig, nodeName, operatingSystem string, internalIP string, daemonEndpointPort int32) (*CloudRunProvider, error) {
+func NewCloudRunProvider(providerConfig, nodeName, operatingSystem string, internalIP string, daemonEndpointPort int32, pconfig nodeutil.ProviderConfig) (*CloudRunProvider, error) {
 	config, err := loadConfig(providerConfig, nodeName)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewCloudRunProviderConfig(config, nodeName, operatingSystem, internalIP, daemonEndpointPort)
+	return NewCloudRunProviderConfig(config, nodeName, operatingSystem, internalIP, daemonEndpointPort, pconfig)
 }
 
 // loadConfig loads the given json configuration files.
@@ -204,7 +250,8 @@ func (p *CloudRunProvider) CreatePod(ctx context.Context, pod *v1.Pod) error {
 			},
 		})
 	}
-	p.notifier(pod)
+	log.G(ctx).Infof("printing pod %q", pod)
+	//p.notifier(pod)
 	return nil
 }
 
@@ -224,7 +271,7 @@ func (p *CloudRunProvider) UpdatePod(ctx context.Context, pod *v1.Pod) error {
 	}
 
 	p.pods[key] = pod
-	p.notifier(pod)
+	//p.notifier(pod)
 
 	return nil
 }
@@ -250,7 +297,7 @@ func (p *CloudRunProvider) DeletePod(ctx context.Context, pod *v1.Pod) (err erro
 		}
 	}
 
-	p.notifier(pod)
+	//p.notifierp.notifier(pod)
 	return nil
 }
 
@@ -658,7 +705,18 @@ func (p *CloudRunProvider) GetMetricsResource(ctx context.Context) ([]*dto.Metri
 // NotifyPods is called to set a pod notifier callback function. This should be called before any operations are done
 // within the provider.
 func (p *CloudRunProvider) NotifyPods(ctx context.Context, notifier func(*v1.Pod)) {
-	p.notifier = notifier
+	ctx, span := trace.StartSpan(ctx, "ACIProvider.NotifyPods")
+	defer span.End()
+
+	// Capture the notifier to be used for communicating updates to VK
+	p.tracker = &PodsTracker{
+		updateCb:       notifier,
+		handler:        p,
+		pods:           p.pconfig.Pods,
+		lastEventCheck: time.UnixMicro(0),
+	}
+
+	go p.tracker.StartTracking(ctx)
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")

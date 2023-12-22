@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/tls"
 	"kubelet-cloud-run/internal/provider"
+	cloudrunprovider "kubelet-cloud-run/internal/provider/cloudrun"
 	"net/http"
 	"os"
 	"runtime"
@@ -87,7 +88,8 @@ func runRootCommand(ctx context.Context, s *provider.Store, c Opts) error {
 		scmInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(clientSet, c.InformerResyncPeriod)
 
 		rm, err := manager.NewResourceManager(cfg.Pods, cfg.Secrets, cfg.ConfigMaps, cfg.Services,
-			scmInformerFactory.Core().V1().PersistentVolumeClaims().Lister(), scmInformerFactory.Core().V1().PersistentVolumes().Lister())
+			scmInformerFactory.Core().V1().PersistentVolumeClaims().Lister(),
+			scmInformerFactory.Core().V1().PersistentVolumes().Lister())
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "could not create resource manager")
 		}
@@ -105,7 +107,7 @@ func runRootCommand(ctx context.Context, s *provider.Store, c Opts) error {
 			return nil, nil, errors.Errorf("provider %q not found", c.Provider)
 		}
 
-		p, err := pInit(initConfig)
+		p, err := pInit(initConfig, cfg)
 		if err != nil {
 			return nil, nil, errors.Wrapf(err, "error initializing provider %s", c.Provider)
 		}
@@ -119,26 +121,39 @@ func runRootCommand(ctx context.Context, s *provider.Store, c Opts) error {
 		return err
 	}
 
-	cm, err := nodeutil.NewNode(c.NodeName, newProvider, func(cfg *nodeutil.NodeConfig) error {
-		cfg.KubeconfigPath = c.KubeConfigPath
-		cfg.Handler = mux
-		cfg.InformerResyncPeriod = c.InformerResyncPeriod
+	cm, err := nodeutil.NewNode(c.NodeName, newProvider,
+		func(cfg *nodeutil.NodeConfig) error {
+			cfg.KubeconfigPath = c.KubeConfigPath
+			cfg.Handler = mux
+			cfg.InformerResyncPeriod = c.InformerResyncPeriod
 
-		if taint != nil {
-			cfg.NodeSpec.Spec.Taints = append(cfg.NodeSpec.Spec.Taints, *taint)
-		}
-		cfg.NodeSpec.Status.NodeInfo.Architecture = runtime.GOARCH
-		cfg.NodeSpec.Status.NodeInfo.OperatingSystem = c.OperatingSystem
+			if taint != nil {
+				cfg.NodeSpec.Spec.Taints = append(cfg.NodeSpec.Spec.Taints, *taint)
+			}
+			cfg.NodeSpec.Status.NodeInfo.Architecture = runtime.GOARCH
+			cfg.NodeSpec.Status.NodeInfo.OperatingSystem = c.OperatingSystem
 
-		cfg.HTTPListenAddr = apiConfig.Addr
-		cfg.StreamCreationTimeout = apiConfig.StreamCreationTimeout
-		cfg.StreamIdleTimeout = apiConfig.StreamIdleTimeout
-		cfg.DebugHTTP = true
+			cfg.HTTPListenAddr = apiConfig.Addr
+			cfg.StreamCreationTimeout = apiConfig.StreamCreationTimeout
+			cfg.StreamIdleTimeout = apiConfig.StreamIdleTimeout
+			cfg.DebugHTTP = true
 
-		cfg.NumWorkers = c.PodSyncWorkers
+			cfg.NumWorkers = c.PodSyncWorkers
 
-		return nil
-	},
+			s.Register("cloudrun", func(cfg provider.InitConfig, config nodeutil.ProviderConfig) (provider.Provider, error) { //nolint:errcheck
+				prov, err := cloudrunprovider.NewCloudRunProvider(
+					cfg.ConfigPath,
+					cfg.NodeName,
+					cfg.OperatingSystem,
+					cfg.InternalIP,
+					cfg.DaemonPort,
+					config,
+				)
+				return prov, err
+			})
+
+			return nil
+		},
 		nodeutil.WithClient(clientSet),
 		setAuth(c.NodeName, apiConfig),
 		nodeutil.WithTLSConfig(

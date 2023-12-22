@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"github.com/virtual-kubelet/virtual-kubelet/node/nodeutil"
 	"sync"
 
 	"github.com/virtual-kubelet/node-cli/manager"
@@ -71,4 +72,4 @@ type InitConfig struct {
 	ResourceManager   *manager.ResourceManager
 }
 
-type InitFunc func(InitConfig) (Provider, error) //nolint:golint
+type InitFunc func(InitConfig, nodeutil.ProviderConfig) (Provider, error) //nolint:golint
