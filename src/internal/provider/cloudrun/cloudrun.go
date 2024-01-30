@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/virtual-kubelet/virtual-kubelet/node/nodeutil"
 	"io"
-	"k8s.io/apimachinery/pkg/runtime"
 	"math/rand"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/virtual-kubelet/virtual-kubelet/node/nodeutil"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	run "cloud.google.com/go/run/apiv2"
 	dto "github.com/prometheus/client_model/go"
@@ -99,7 +100,7 @@ func (p *CloudRunProvider) FetchPodEvents(ctx context.Context, pod *v1.Pod, evtS
 func (p *CloudRunProvider) CleanupPod(ctx context.Context, ns, name string) error {
 	ctx, span := trace.StartSpan(ctx, "CloudRunProvider.CleanupPod")
 	defer span.End()
-	p.crclient.DeletePod(name)
+	p.crclient.DeleteService(name)
 	return nil
 }
 
@@ -209,13 +210,14 @@ func (p *CloudRunProvider) CreatePod(ctx context.Context, pod *v1.Pod) error {
 	defer c.Close()
 	if err != nil {
 		fmt.Println(err)
+		return err
 	}
 
 	// Add the pod's coordinates to the current span.
 	ctx = addAttributes(ctx, span, namespaceKey, pod.Namespace, nameKey, pod.Name)
 
 	log.G(ctx).Infof("receive CreatePod %q", pod.Name)
-	p.crclient.CreatePod(pod)
+	p.crclient.CreateService(pod)
 	now := metav1.NewTime(time.Now())
 	pod.Status = v1.PodStatus{
 		Phase:     v1.PodRunning,
@@ -280,7 +282,7 @@ func (p *CloudRunProvider) UpdatePod(ctx context.Context, pod *v1.Pod) error {
 func (p *CloudRunProvider) DeletePod(ctx context.Context, pod *v1.Pod) (err error) {
 	ctx, span := trace.StartSpan(ctx, "DeletePod")
 	ctx = addAttributes(ctx, span, namespaceKey, pod.Namespace, nameKey, pod.Name)
-	p.crclient.DeletePod(pod.Name)
+	p.crclient.DeleteService(pod.Name)
 	now := metav1.Now()
 	pod.Status.Phase = v1.PodSucceeded
 	pod.Status.Reason = "CloudRunProviderPodDeleted"
@@ -292,7 +294,7 @@ func (p *CloudRunProvider) DeletePod(ctx context.Context, pod *v1.Pod) (err erro
 				Message:    "CloudRun provider terminated container upon deletion",
 				FinishedAt: now,
 				Reason:     "CloudRunProviderPodContainerDeleted",
-				StartedAt:  pod.Status.ContainerStatuses[idx].State.Running.StartedAt,
+				//StartedAt:  pod.Status.ContainerStatuses[idx].State.Running.StartedAt,
 			},
 		}
 	}
@@ -332,9 +334,9 @@ func (p *CloudRunProvider) GetContainerLogs(ctx context.Context, namespace, podN
 
 	// Add pod and container attributes to the current span.
 	ctx = addAttributes(ctx, span, namespaceKey, namespace, nameKey, podName, containerNameKey, containerName)
-
 	log.G(ctx).Infof("receive GetContainerLogs %q", podName)
-	return io.NopCloser(strings.NewReader("")), nil
+	logs := p.crclient.GetContainerLogs(podName)
+	return io.NopCloser(logs), nil
 }
 
 // RunInContainer executes a command in a container in the pod, copying data
@@ -362,18 +364,47 @@ func (p *CloudRunProvider) PortForward(ctx context.Context, namespace, pod strin
 func (p *CloudRunProvider) GetPodStatus(ctx context.Context, namespace, name string) (*v1.PodStatus, error) {
 	ctx, span := trace.StartSpan(ctx, "GetPodStatus")
 	defer span.End()
-
 	// Add namespace and name as attributes to the current span.
 	ctx = addAttributes(ctx, span, namespaceKey, namespace, nameKey, name)
-
 	log.G(ctx).Infof("receive GetPodStatus %q", name)
 
-	pod, err := p.GetPod(ctx, namespace, name)
-	if err != nil {
-		return nil, err
+	allReady := true
+	var firstContainerStartTime, lastUpdateTime time.Time
+	livePod := p.crclient.GetService(name)
+	//livePod
+	containersList := livePod.Template.Containers
+	containerStatuses := make([]v1.ContainerStatus, 0, len(livePod.Template.Containers))
+	lastUpdateTime = livePod.UpdateTime.AsTime()
+	firstContainerStartTime = livePod.CreateTime.AsTime()
+
+	for i := range containersList {
+		container := containersList[i]
+		//containerState := container
+		containerStatus := v1.ContainerStatus{
+			Name: container.Name,
+			//State: containerState,
+			//LastTerminationState: container.Properties.InstanceView.PreviousState,
+			Ready:        true,
+			Started:      &allReady,
+			RestartCount: 0,
+			Image:        container.Image,
+			ImageID:      container.GetImage(),
+			//ContainerID:  container.GetImage(),
+		}
+		containerStatuses = append(containerStatuses, containerStatus)
 	}
 
-	return &pod.Status, nil
+	podIp := ""
+	return &v1.PodStatus{
+		Phase:             getPodPhaseFromCloudRunState(livePod.TerminalCondition.State.String()),
+		Conditions:        getPodConditionsFromCloudRunState(livePod.TerminalCondition.State.String(), firstContainerStartTime, lastUpdateTime, allReady),
+		Message:           "",
+		Reason:            "",
+		HostIP:            p.internalIP,
+		PodIP:             podIp,
+		StartTime:         &metav1.Time{Time: firstContainerStartTime},
+		ContainerStatuses: containerStatuses,
+	}, nil
 }
 
 // GetPods returns a list of all pods known to be "running".
@@ -758,4 +789,48 @@ func addAttributes(ctx context.Context, span trace.Span, attrs ...string) contex
 		ctx = span.WithField(ctx, attrs[i], attrs[i+1])
 	}
 	return ctx
+}
+
+func getPodConditionsFromCloudRunState(state string, creationTime, lastUpdateTime time.Time, allReady bool) []v1.PodCondition {
+	// cg state is validated
+	switch state {
+	case "Running", "CONDITION_SUCCEEDED":
+		readyConditionStatus := v1.ConditionFalse
+		readyConditionTime := creationTime
+		if allReady {
+			readyConditionStatus = v1.ConditionTrue
+			readyConditionTime = lastUpdateTime
+		}
+
+		return []v1.PodCondition{
+			{
+				Type:               v1.PodReady,
+				Status:             readyConditionStatus,
+				LastTransitionTime: metav1.Time{Time: readyConditionTime},
+			}, {
+				Type:               v1.PodInitialized,
+				Status:             v1.ConditionTrue,
+				LastTransitionTime: metav1.Time{Time: creationTime},
+			}, {
+				Type:               v1.PodScheduled,
+				Status:             v1.ConditionTrue,
+				LastTransitionTime: metav1.Time{Time: creationTime},
+			},
+		}
+	}
+	return []v1.PodCondition{}
+}
+func getPodPhaseFromCloudRunState(state string) v1.PodPhase {
+	switch state {
+	case "CONDITION_SUCCEEDED":
+		return v1.PodRunning
+	case "CONDITION_FAILED":
+		return v1.PodFailed
+	case "CONDITION_RECONCILING":
+		return v1.PodPending
+	case "CONDITION_PENDING":
+		return v1.PodPending
+	}
+
+	return v1.PodRunning
 }

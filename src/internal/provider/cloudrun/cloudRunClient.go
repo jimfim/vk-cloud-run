@@ -1,9 +1,12 @@
 package cloudrun
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"strings"
 
+	"cloud.google.com/go/logging/logadmin"
 	run "cloud.google.com/go/run/apiv2"
 	"cloud.google.com/go/run/apiv2/runpb"
 	"google.golang.org/api/iterator"
@@ -67,7 +70,21 @@ func (h *ClientManager) ListPods() {
 	}
 }
 
-func (h *ClientManager) DeletePod(name string) {
+func (h *ClientManager) GetService(name string) runpb.Service {
+	parent := fmt.Sprintf("projects/%s/locations/%s/services/%s", h.config.projectId, h.config.region, name)
+	req := &runpb.GetServiceRequest{
+		Name: parent,
+	}
+
+	op, err := h.client.GetService(h.context, req)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	return *op
+}
+
+func (h *ClientManager) DeleteService(name string) {
 	parent := fmt.Sprintf("projects/%s/locations/%s/services/%s", h.config.projectId, h.config.region, name)
 	req := &runpb.DeleteServiceRequest{
 		Name:         parent,
@@ -77,18 +94,57 @@ func (h *ClientManager) DeletePod(name string) {
 	op, err := h.client.DeleteService(h.context, req)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 	resp, err := op.Wait(h.context)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 	_ = resp
 }
 
-func (h *ClientManager) CreatePod(pod *v1.Pod) {
+func (h *ClientManager) CreateService(pod *v1.Pod) {
 	parent := fmt.Sprintf("projects/%s/locations/%s", h.config.projectId, h.config.region)
 	labels := map[string]string{
 		"managed-by": "virtual-kubelet",
+	}
+	serviceContainers := make([]*runpb.Container, 0, len(pod.Spec.Containers))
+	for _, containerSpec := range pod.Spec.Containers {
+
+		portList := make([]*runpb.ContainerPort, 0, len(containerSpec.Ports))
+		for i := range containerSpec.Ports {
+			portList = append(portList, &runpb.ContainerPort{
+				ContainerPort: containerSpec.Ports[i].ContainerPort,
+				Name:          containerSpec.Ports[i].Name,
+			})
+		}
+
+		resource := &runpb.ResourceRequirements{
+			Limits: map[string]string{
+				"cpu":    fmt.Sprintf("%d", containerSpec.Resources.Limits.Cpu().Value()),
+				"memory": fmt.Sprintf("%dMi", containerSpec.Resources.Limits.Memory().Value()/1024/1024),
+			},
+		}
+
+		envvars := make([]*runpb.EnvVar, 0, len(containerSpec.Env))
+		for i := range containerSpec.Env {
+			envvars = append(envvars, &runpb.EnvVar{
+				Name: containerSpec.Env[i].Name,
+				Values: &runpb.EnvVar_Value{
+					Value: containerSpec.Env[i].Value,
+				},
+			})
+		}
+
+		container := &runpb.Container{
+			Image:     containerSpec.Image,
+			Ports:     portList,
+			Resources: resource,
+			Env:       envvars,
+		}
+
+		serviceContainers = append(serviceContainers, container)
 	}
 
 	req := &runpb.CreateServiceRequest{
@@ -97,13 +153,8 @@ func (h *ClientManager) CreatePod(pod *v1.Pod) {
 			Labels:      labels,
 			Description: "my-service",
 			Template: &runpb.RevisionTemplate{
-				Labels: labels,
-				Containers: []*runpb.Container{
-					{
-						Image: "us-docker.pkg.dev/cloudrun/container/hello",
-						Ports: []*runpb.ContainerPort{{ContainerPort: 8080}},
-					},
-				},
+				Labels:     labels,
+				Containers: serviceContainers,
 			},
 		},
 		ServiceId:    pod.Name,
@@ -120,4 +171,36 @@ func (h *ClientManager) CreatePod(pod *v1.Pod) {
 		fmt.Println(err)
 	}
 	_ = resp
+}
+
+func (h *ClientManager) GetContainerLogs(name string) *strings.Reader {
+	//parent := fmt.Sprintf("projects/%s/locations/%s/services/%s", h.config.projectId, h.config.region, name)
+	adminClient, err := logadmin.NewClient(h.context, h.config.projectId, option.WithCredentialsFile("/application_default_credentials.json"))
+	if err != nil {
+		fmt.Println("Failed to create logadmin client: %v", err)
+	}
+	defer adminClient.Close()
+
+	var buffer bytes.Buffer
+	//lastHour := time.Now().Add(-1 * time.Hour).Format(time.RFC3339)
+
+	iter := adminClient.Entries(h.context,
+		// Only get entries from the "log-example" log within the last hour.
+		logadmin.Filter(fmt.Sprintf(`resource.labels.service_name = "%s"`, name)),
+		// Get most recent entries first.
+		//logadmin.NewestFirst(),
+	)
+
+	//fmt.Println("Failed to create logadmin client: %v", err)
+
+	for {
+		entry, err := iter.Next()
+		if err == iterator.Done {
+			return strings.NewReader(buffer.String())
+		}
+		if err != nil {
+			return nil
+		}
+		buffer.WriteString(fmt.Sprintf("%b", entry.Payload))
+	}
 }

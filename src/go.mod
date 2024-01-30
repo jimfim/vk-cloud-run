@@ -3,6 +3,7 @@ module kubelet-cloud-run
 go 1.20
 
 require (
+	cloud.google.com/go/logging v1.7.0
 	cloud.google.com/go/run v0.9.0
 	contrib.go.opencensus.io/exporter/jaeger v0.2.1
 	contrib.go.opencensus.io/exporter/ocagent v0.7.0
