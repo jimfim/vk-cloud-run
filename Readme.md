@@ -1,21 +1,69 @@
 # Virtual Kubelet  - Cloud run
-A virtual kubelet implementation for cloud run
+A virtual kubelet implementation for Google CloudRun
 
-## Installing
+## Kubernetes Virtual Kubelet with Cloud Run
+The Google Cloud Run provider for the Virtual Kubelet configures Google Cloud Run service as a virtual node in a Kubernetes cluster. Hence, pods scheduled on the virtual node can be as Google Cloud Run services. This configuration allows users to take advantage of both the capabilities of Kubernetes and the management value and cost benefit of Cloud Run.
 
-## Building
+## Features 
 
-# Build Container
+Virtual Kubelet's Google Cloud Run provider relies heavily on the feature set that Cloud Run service provides. 
+
+### Supported
+* Environment Variables
+* More to come
+
+### Limitations (Not supported)
+* Anything enforced by Cloud Run
+* * [strict resource settings](https://cloud.google.com/run/docs/configuring/services/cpu)
+* * 1 ingress 
+* 
+
+## Installation
+
+
+### Local Docker Desktop
+In root directory.
+
+Build local image
+
+``` Bash
 docker build -t localhost:5000/virtual-kubelet -f .\Containerfile .
+```
+Install Virtual Kubelet and Demo app
 
+```bash
 kubectl apply -f .\charts\virtual-kubelet.yaml
 kubectl apply -f .\charts\deploy.yaml
+```
+When you are finished, remove install
 
-
+```bash
 kubectl delete -f .\charts\virtual-kubelet.yaml
 kubectl delete -f .\charts\deploy.yaml
+```
+### GKE
+Helm install
+
+```bash
+helm install <coming soon>
+```
+Add a Toleration to your Deployment
+```yaml
+      tolerations:
+      - key: virtual-kubelet.io/provider
+        operator: Exists
+```
+## Identity
+
+### (Recommended) IAM Workflow Identity
+
+### (Bad Way) Service Key
 
 
+```
+kubectl create configmap application-default-credentials --from-file=./application_default_credentials.json
+```
+=======
 # Quirks
 ## Resources 
 https://cloud.google.com/run/docs/configuring/services/cpu
