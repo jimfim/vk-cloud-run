@@ -23,5 +23,3 @@ jobs:
           file: Containerfile
           push: true
           tags: jimfim/virtual-kubelet-gcr:latest
-        github-token: # optional, default is ${{ github.token }}
-              
