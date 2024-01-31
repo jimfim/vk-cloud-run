@@ -18,8 +18,29 @@ Virtual Kubelet's Google Cloud Run provider relies heavily on the feature set th
 * * 1 ingress 
 * 
 
+## Identity
+
+### (Recommended) IAM Workflow Identity
+
+### Credetial
+
+Follow the guide here to download an a file with your credentials https://cloud.google.com/docs/authentication/application-default-credentials
+and install this as a config map in your local Kubernetes instance to grant the virtual kubelet access to your Google Cloud run instance
+```
+kubectl create configmap application-default-credentials --from-file=./application_default_credentials.json
+```
+
 ## Installation
 
+### Configuration
+
+#### Node
+there is file here that  will allow you to configure the specifications of the Cloud run provider node instance
+https://github.com/jimfim/vk-cloud-run/blob/main/src/vkubelet-cfg.json
+
+#### Cloud Run
+In writing this i relaize my region and project id are hard coded directly into the kubelet... whoops
+I should fix this
 
 ### Local Docker Desktop
 In root directory.
@@ -53,17 +74,7 @@ Add a Toleration to your Deployment
       - key: virtual-kubelet.io/provider
         operator: Exists
 ```
-## Identity
 
-### (Recommended) IAM Workflow Identity
-
-### (Bad Way) Service Key
-
-
-```
-kubectl create configmap application-default-credentials --from-file=./application_default_credentials.json
-```
-=======
 # Quirks
 ## Resources 
 https://cloud.google.com/run/docs/configuring/services/cpu
