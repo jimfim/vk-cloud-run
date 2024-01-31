@@ -22,7 +22,7 @@ Virtual Kubelet's Google Cloud Run provider relies heavily on the feature set th
 
 ### (Recommended) IAM Workflow Identity
 
-### Credetial
+### Credentials
 
 Follow the guide here to download an a file with your credentials https://cloud.google.com/docs/authentication/application-default-credentials
 and install this as a config map in your local Kubernetes instance to grant the virtual kubelet access to your Google Cloud run instance
@@ -40,7 +40,7 @@ https://github.com/jimfim/vk-cloud-run/blob/main/src/vkubelet-cfg.json
 
 #### Cloud Run
 In writing this i relaize my region and project id are hard coded directly into the kubelet... whoops
-I should fix this
+I should fix this https://github.com/jimfim/vk-cloud-run/issues/5
 
 ### Local Docker Desktop
 In root directory.
