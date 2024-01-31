@@ -59,6 +59,11 @@ Add a Toleration to your Deployment
 
 ### (Bad Way) Service Key
 
+
 ```
 kubectl create configmap application-default-credentials --from-file=./application_default_credentials.json
 ```
+=======
+# Quirks
+## Resources 
+https://cloud.google.com/run/docs/configuring/services/cpu
