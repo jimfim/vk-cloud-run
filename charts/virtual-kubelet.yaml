@@ -19,7 +19,13 @@ spec:
       - image: localhost:5000/virtual-kubelet
         imagePullPolicy: Never
         name: virtual-kubelet
-        resources: {}
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "1"
+          limits:
+            memory: "512Mi"
+            cpu: "1"
         ports:
         - name: metrics
           containerPort: 10255
@@ -51,6 +57,10 @@ spec:
             value: "/run/config/pki/ca.crt"
           - name: KUBELET_PORT
             value: "10250"
+          - name: region
+            value: us-east1
+          - name: projectId      
+            value: direct-volt-388318
           - name: VKUBELET_POD_IP
             valueFrom:
               fieldRef:

@@ -129,8 +129,8 @@ func NewCloudRunProviderConfig(config CloudRunConfig, nodeName, operatingSystem 
 	}
 	client := ClientManager{}
 	crconfgi := TrackerConfig{
-		region:    "us-east1",
-		projectId: "direct-volt-388318",
+		region:    os.Getenv("region"),
+		projectId: os.Getenv("projectId"),
 	}
 
 	client.Initialize(crconfgi)
