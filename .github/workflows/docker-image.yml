@@ -39,7 +39,7 @@ jobs:
         with:
           file: Containerfile
           push: true
-          tags: jimfim/virtual-kubelet-gcr:${{ steps.gitversion.outputs.semVer }}
+          tags: jimfim/virtual-kubelet-gcr:${{ steps.gitversion.outputs.FullSemVer }}
 
       - name: Install Helm
         uses: azure/setup-helm@v3
@@ -48,6 +48,6 @@ jobs:
         uses: helm/chart-releaser-action@v1.6.0
         with:
           charts_dir: charts
-          version: ${{ steps.gitversion.outputs.semVer }}
+          version: ${{ steps.gitversion.outputs.FullSemVer }}
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
