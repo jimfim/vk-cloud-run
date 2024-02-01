@@ -8,6 +8,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v0
+        with:
+          versionSpec: '5.5.0'
+
+      - name: Determine Version
+        id:   gitversion # id to later be referenced
+        uses: gittools/actions/gitversion/execute@v0
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
@@ -22,4 +31,4 @@ jobs:
         with:
           file: Containerfile
           push: true
-          tags: jimfim/virtual-kubelet-gcr:latest
+          tags: jimfim/virtual-kubelet-gcr:${{ steps.gitversion.outputs.semVer }}
