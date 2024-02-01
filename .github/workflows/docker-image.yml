@@ -8,10 +8,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v0
+      - name: Checkout
+        uses: actions/checkout@v2
         with:
-          versionSpec: '5.5.0'
+          fetch-depth: 0
 
       - name: Determine Version
         id:   gitversion # id to later be referenced
