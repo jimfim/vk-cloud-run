@@ -40,15 +40,4 @@ jobs:
         with:
           file: Containerfile
           push: true
-          tags: jimfim/virtual-kubelet-gcr:${{ steps.gitversion.outputs.ShortSha }}
-
-      - name: Install Helm
-        uses: azure/setup-helm@v3
-
-      - name: Run chart-releaser
-        uses: helm/chart-releaser-action@v1.6.0
-        with:
-          charts_dir: charts/vk-cloud-run
-          version: ${{ steps.gitversion.outputs.ShortSha }}
-        env:
-          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          tags: jimfim/virtual-kubelet-gcr:${{ steps.gitversion.outputs.SemVer }}-${{ steps.gitversion.outputs.BuildMetaDataPadded }}
