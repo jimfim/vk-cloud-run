@@ -2,6 +2,16 @@ apiVersion: v1
 entries:
   vk-cloud-run:
   - apiVersion: v2
+    appVersion: 0.1.2
+    created: "2024-02-04T22:28:18.818559919Z"
+    description: A Helm chart for Kubernetes
+    digest: dfba4650d54e4bb68dbb1959d0447a925cd58b52d44941751a5396735ce2ebbb
+    name: vk-cloud-run
+    type: application
+    urls:
+    - https://github.com/jimfim/vk-cloud-run/releases/download/vk-cloud-run-0.1.2/vk-cloud-run-0.1.2.tgz
+    version: 0.1.2
+  - apiVersion: v2
     appVersion: 1.16.0
     created: "2024-02-04T20:08:16.290718367Z"
     description: A Helm chart for Kubernetes
@@ -31,4 +41,4 @@ entries:
     urls:
     - https://github.com/jimfim/vk-cloud-run/releases/download/vk-cloud-run-0.1.0-alpha.37/vk-cloud-run-0.1.0-alpha.37.tgz
     version: 0.1.0-alpha.37
-generated: "2024-02-04T22:19:29.993322486Z"
+generated: "2024-02-04T22:28:18.818584133Z"
