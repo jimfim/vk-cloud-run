@@ -18,6 +18,20 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v0
+        with:
+          versionSpec: '5.x'
+
+      - name: Determine Version
+        id:   gitversion # id to later be referenced
+        uses: gittools/actions/gitversion/execute@v0
+
       - name: Configure Git
         run: |
           git config user.name "$GITHUB_ACTOR"
