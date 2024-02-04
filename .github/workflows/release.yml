@@ -46,7 +46,7 @@ jobs:
           cd ./charts/vk-cloud-run 
           sed -i "s/appVersion\: 0\.0\.0/appVersion\: ${{ steps.gitversion.outputs.SemVer }}-${{ steps.gitversion.outputs.BuildMetaDataPadded }}/" Chart.yaml
           sed -i "s/version\: 0\.0\.0/version\: ${{ steps.gitversion.outputs.SemVer }}-${{ steps.gitversion.outputs.BuildMetaDataPadded }}/" Chart.yaml
-          helm package . --app-version ${{ env.appMajorMinorVersion }}.${{ env.tag }} 
+          cat Chart.yaml
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.6.0
