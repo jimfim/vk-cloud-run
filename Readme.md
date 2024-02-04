@@ -32,6 +32,16 @@ kubectl create configmap application-default-credentials --from-file=./applicati
 
 ## Installation
 
+### Helm
+
+```bash
+helm repo add vk-cloud-run https://jimfim.github.io/vk-cloud-run
+```
+
+```bash
+helm install vk-cloud-run jimfim/vk-cloud-run
+```
+
 ### Configuration
 
 #### Node
