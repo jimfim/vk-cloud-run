@@ -26,6 +26,13 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v3
 
+
+      - name: Helm Chart Update, Package and Push
+        run: |
+          cd ./charts/vk-cloud-run 
+          sed -i "s/appVersion\: 0\.0\.0/appVersion\: ${{ steps.gitversion.outputs.SemVer }}-${{ steps.gitversion.outputs.BuildMetaDataPadded }}/" Chart.yaml
+          helm package . --app-version ${{ env.appMajorMinorVersion }}.${{ env.tag }} 
+
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.6.0
         env:
