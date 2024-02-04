@@ -40,7 +40,7 @@ helm repo add vk-cloud-run https://jimfim.github.io/vk-cloud-run
 
 
 ```bash
-helm install vk-cloud-run jimfim/vk-cloud-run
+helm install vk-cloud-run vk-cloud-run/vk-cloud-run
 ```
 
 ### Configuration

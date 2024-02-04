@@ -96,3 +96,9 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+env:
+- name: region
+  value: us-east1
+- name: projectId      
+  value: direct-volt-388318
