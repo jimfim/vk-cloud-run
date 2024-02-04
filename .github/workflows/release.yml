@@ -2,9 +2,7 @@ name: Release Charts
 
 on:
   push:
-    branches:
-      - main
-      - develop
+    branches: [ "main", "develop" ]
 
 jobs:
   release:
