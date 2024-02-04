@@ -48,7 +48,7 @@ jobs:
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.6.0
         with:
-          charts_dir: charts
+          charts_dir: charts/vk-cloud-run
           version: ${{ steps.gitversion.outputs.ShortSha }}
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
