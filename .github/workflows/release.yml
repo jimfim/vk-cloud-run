@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - develop
 
 jobs:
   release:
@@ -44,8 +45,8 @@ jobs:
       - name: Helm Chart Update, Package and Push
         run: |
           cd ./charts/vk-cloud-run 
-          sed -i "s/appVersion\: 0\.0\.0/appVersion\: ${{ steps.gitversion.outputs.SemVer }}-${{ steps.gitversion.outputs.BuildMetaDataPadded }}/" Chart.yaml
-          sed -i "s/version\: 0\.0\.0/version\: ${{ steps.gitversion.outputs.SemVer }}-${{ steps.gitversion.outputs.BuildMetaDataPadded }}/" Chart.yaml
+          sed -i "s/appVersion\: 0\.0\.0/appVersion\: ${{ steps.gitversion.outputs.SemVer }}/" Chart.yaml
+          sed -i "s/version\: 0\.0\.0/version\: ${{ steps.gitversion.outputs.SemVer }}/" Chart.yaml
           cat Chart.yaml
 
       - name: Run chart-releaser

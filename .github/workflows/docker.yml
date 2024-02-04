@@ -2,9 +2,9 @@ name: Docker Image CI
 on:
   workflow_dispatch: 
   push:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -40,4 +40,4 @@ jobs:
         with:
           file: Containerfile
           push: true
-          tags: jimfim/virtual-kubelet-gcr:${{ steps.gitversion.outputs.SemVer }}-${{ steps.gitversion.outputs.BuildMetaDataPadded }}
+          tags: jimfim/virtual-kubelet-gcr:${{ steps.gitversion.outputs.SemVer }}
