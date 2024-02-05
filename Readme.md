@@ -31,7 +31,7 @@ Virtual Kubelet's Google Cloud Run provider relies heavily on the feature set th
 
 ### (Recommended) IAM Workflow Identity
 
-### Credentials
+### Application Default Credentials
 
 Follow the guide here to download an a file with your credentials https://cloud.google.com/docs/authentication/application-default-credentials
 and install this as a config map in your local Kubernetes instance to grant the virtual kubelet access to your Google Cloud run instance
@@ -64,8 +64,6 @@ there is file here that  will allow you to configure the specifications of the C
 https://github.com/jimfim/vk-cloud-run/blob/main/src/vkubelet-cfg.json
 
 #### Cloud Run
-In writing this i relaize my region and project id are hard coded directly into the kubelet... whoops
-I should fix this https://github.com/jimfim/vk-cloud-run/issues/5
 
 ### Local Docker Desktop
 In root directory.
@@ -78,22 +76,19 @@ docker build -t localhost:5000/virtual-kubelet -f .\Containerfile .
 Install Virtual Kubelet and Demo app
 
 ```bash
-kubectl apply -f .\charts\virtual-kubelet.yaml
+helm install vk-cloud-run .\charts\vk-cloud-run\
 kubectl apply -f .\charts\deploy.yaml
 ```
 When you are finished, remove install
 
 ```bash
-kubectl delete -f .\charts\virtual-kubelet.yaml
+helm delete vk-cloud-run
 kubectl delete -f .\charts\deploy.yaml
 ```
-### GKE
-Helm install
+### Usage
 
-```bash
-helm install <coming soon>
-```
 Add a Toleration to your Deployment
+
 ```yaml
       tolerations:
       - key: virtual-kubelet.io/provider
