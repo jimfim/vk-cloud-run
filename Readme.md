@@ -4,6 +4,15 @@ A virtual kubelet implementation for Google CloudRun
 ## Kubernetes Virtual Kubelet with Cloud Run
 The Google Cloud Run provider for the Virtual Kubelet configures Google Cloud Run service as a virtual node in a Kubernetes cluster. Hence, pods scheduled on the virtual node can be as Google Cloud Run services. This configuration allows users to take advantage of both the capabilities of Kubernetes and the management value and cost benefit of Cloud Run.
 
+## Current status
+
+Verified to work currently only on Windows using a local Kubernetes instance via Docker Desktop.
+Cloudrun permisisons permitted via ADC made avialable to the kubernetes instance via configmap.
+
+This Project can be a considered a POC at best, and is highly unlikely to function outside of the exact  scenario described above
+
+![deploy demo](./docs/demo.PNG)
+
 ## Features 
 
 Virtual Kubelet's Google Cloud Run provider relies heavily on the feature set that Cloud Run service provides. 
@@ -41,6 +50,11 @@ helm repo add vk-cloud-run https://jimfim.github.io/vk-cloud-run
 
 ```bash
 helm install vk-cloud-run vk-cloud-run/vk-cloud-run
+```
+
+or from source
+```bash
+helm install vk-cloud-run .\charts\vk-cloud-run\
 ```
 
 ### Configuration
